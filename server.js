@@ -5,6 +5,9 @@ const path = require('path');
 const cors = require('cors');
 const mongoose = require('mongoose');
 
+// Cargar variables locales si existe archivo .env (para cuando lo pruebes en tu PC)
+try { require('dotenv').config(); } catch (e) {}
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -13,7 +16,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-const MONGO_URI = "mongodb://globalengineeringandanalytics_db_user:V9sokcwxty5JGonl@ac-uay28ui-shard-00-00.k452166.mongodb.net:27017,ac-uay28ui-shard-00-01.k452166.mongodb.net:27017,ac-uay28ui-shard-00-02.k452166.mongodb.net:27017/gea_copier?ssl=true&replicaSet=atlas-syduq4-shard-0&authSource=admin";
+// Leer la URI desde la nube (Render) o usar respaldo local
+const MONGO_URI = process.env.MONGO_URI || "mongodb://globalengineeringandanalytics_db_user:V9sokcwxty5JGonl@ac-uay28ui-shard-00-00.k452166.mongodb.net:27017,ac-uay28ui-shard-00-01.k452166.mongodb.net:27017,ac-uay28ui-shard-00-02.k452166.mongodb.net:27017/gea_copier?ssl=true&replicaSet=atlas-syduq4-shard-0&authSource=admin";
 
 mongoose.connect(MONGO_URI)
   .then(async () => {
@@ -245,5 +249,8 @@ app.post('/api/prop-firms', async (req, res) => {
   }
 });
 
-const PORT = 3000;
-server.listen(PORT, () => console.log(`[JOURNAL DE TRADING] Servidor activo en http://localhost:${PORT}`));
+// Puerto dinámico para Render y escucha abierta (0.0.0.0)
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[JOURNAL DE TRADING] Servidor activo en puerto ${PORT}`);
+});
