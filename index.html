@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Journal de Trading - GEA</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #040812; color: #e2e8f0; min-height: 100vh; display: flex; }
+
+    #login-overlay {
+      position: fixed; inset: 0; background: #040812; z-index: 9999;
+      display: flex; justify-content: center; align-items: center; padding: 20px;
+    }
+    .login-card {
+      background-color: #0b1325; border: 1px solid #1a2744; border-radius: 16px;
+      padding: 32px; width: 100%; max-width: 400px; box-shadow: 0 0 30px rgba(34, 211, 238, 0.15);
+    }
+    .login-title {
+      font-size: 20px; font-weight: 900; background: linear-gradient(90deg, #67e8f9, #22d3ee, #c084fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; text-align: center;
+    }
+    .login-sub { font-size: 11px; color: #64748b; text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; line-height: 1.5; }
+
+    .app-layout { display: flex; width: 100%; min-height: 100vh; }
+    .sidebar {
+      width: 260px; background-color: #0b1325; border-right: 1px solid #1a2744;
+      display: flex; flex-direction: column; padding: 24px 16px; gap: 20px; flex-shrink: 0;
+    }
+    .brand-title { font-size: 18px; font-weight: 900; color: #22d3ee; }
+    .sidebar-menu { display: flex; flex-direction: column; gap: 6px; }
+    .tab-btn {
+      display: flex; align-items: center; gap: 10px; background: transparent; border: 1px solid transparent;
+      color: #64748b; padding: 10px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; transition: 0.2s;
+    }
+    .tab-btn:hover { color: #e2e8f0; background-color: rgba(26, 39, 68, 0.4); border-color: #1a2744; }
+    .tab-btn.active { background: rgba(8, 47, 73, 0.7); border-color: #22d3ee; color: #22d3ee; }
+
+    .sidebar-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid #1a2744; font-size: 10px; color: #64748b; display: flex; flex-direction: column; gap: 8px; }
+    .btn-logout { background: rgba(220, 38, 38, 0.2); color: #f87171; border: 1px solid #f87171; padding: 6px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; }
+
+    .main-content { flex: 1; padding: 24px 32px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+    .panel { background-color: #0b1325; border: 1px solid #1a2744; border-radius: 14px; padding: 20px; }
+    .content-header { display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #22d3ee; border-bottom: 2px solid #a855f7; padding: 16px 24px; }
+    
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .metric-card { background-color: #0b1325; border: 1px solid #1a2744; border-radius: 10px; padding: 14px; }
+    .metric-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #22d3ee; }
+    .metric-value { font-size: 20px; font-weight: 800; color: #ffffff; margin-top: 4px; }
+
+    .btn-action {
+      background: linear-gradient(90deg, #0284c7, #22d3ee); color: #040812; font-weight: 800; font-size: 11px;
+      text-transform: uppercase; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+    }
+    .table-wrapper { overflow-x: auto; border: 1px solid #1a2744; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+    th { background: #040812; color: #c084fc; font-weight: 700; padding: 10px 14px; border-bottom: 1px solid #1a2744; }
+    td { padding: 12px 14px; border-bottom: 1px solid #1a2744; color: #cbd5e1; font-family: monospace; }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #38bdf8; margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; background: #040812; border: 1px solid #1a2744; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #fff; }
+    
+    .modal { position: fixed; inset: 0; background: rgba(4,8,18,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-card { background: #0b1325; border: 1px solid #1a2744; border-radius: 12px; padding: 24px; width: 100%; max-width: 480px; box-shadow: 0 0 40px rgba(34,211,238,0.2); }
+  </style>
+</head>
+<body>
+  <div id="root" style="width: 100%; display: flex;"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function EquityChart({ data }) {
+      if (!data || data.length === 0) return <div style={{ color: '#64748b', fontSize: '12px' }}>Sin datos de balance automático</div>;
+      const min = Math.min(...data.map(d => d.balance));
+      const max = Math.max(...data.map(d => d.balance));
+      const range = max - min || 1;
+      const points = data.map((d, i) => {
+        const x = (i / (data.length - 1 || 1)) * 500;
+        const y = 140 - ((d.balance - min) / range) * 110;
+        return `${x},${y}`;
+      }).join(' ');
+      return (
+        <div style={{ width: '100%', height: '160px', position: 'relative' }}>
+          <svg viewBox="0 0 500 150" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+            <defs>
+              <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+            <polygon points={`0,150 ${points} 500,150`} fill="url(#equityGrad)" />
+            <polyline fill="none" stroke="#22d3ee" strokeWidth="2.5" points={points} />
+          </svg>
+        </div>
+      );
+    }
+
+    function App() {
+      const [user, setUser] = useState(null);
+      const [activeTab, setActiveTab] = useState('journal');
+      const [masterAccount, setMasterAccount] = useState(null);
+      const [accounts, setAccounts] = useState([]);
+      const [trades, setTrades] = useState([]);
+      const [propFirms, setPropFirms] = useState([]);
+      const [showAccountModal, setShowAccountModal] = useState(false);
+      const [showMasterModal, setShowMasterModal] = useState(false);
+      const [showPropModal, setShowPropModal] = useState(false);
+      const [showNewsModal, setShowNewsModal] = useState(false);
+
+      const [clocks, setClocks] = useState({ colombia: '', ny: '', asia: '', london: '' });
+      const [userTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          const now = new Date();
+          setClocks({
+            colombia: now.toLocaleTimeString('en-US', { timeZone: userTimezone, hour12: false }),
+            ny: now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false }),
+            asia: now.toLocaleTimeString('en-US', { timeZone: 'Asia/Tokyo', hour12: false }),
+            london: now.toLocaleTimeString('en-US', { timeZone: 'Europe/London', hour12: false })
+          });
+        }, 1000);
+        return () => clearInterval(timer);
+      }, [userTimezone]);
+
+      useEffect(() => {
+        if (!user) return;
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'NEW_TRADE') {
+            setTrades(data.data.trades);
+          }
+        };
+        return () => ws.close();
+      }, [user]);
+
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        const username = e.target.username.value;
+        const password = e.target.password.value;
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUser(data.user);
+          loadAppData(data.user.username);
+          setShowNewsModal(true);
+        } else {
+          alert(data.message);
+        }
+      };
+
+      const loadAppData = async (username) => {
+        const resT = await fetch(`/api/trades/${username}`);
+        const dtT = await resT.json();
+        if (dtT.success) setTrades(dtT.trades);
+
+        const resM = await fetch(`/api/master-account/${username}`);
+        const dtM = await resM.json();
+        if (dtM.success) setMasterAccount(dtM.master);
+
+        const resA = await fetch(`/api/accounts/${username}`);
+        const dtA = await resA.json();
+        if (dtA.success) setAccounts(dtA.accounts);
+
+        const resP = await fetch(`/api/prop-firms/${username}`);
+        const dtP = await resP.json();
+        if (dtP.success) setPropFirms(dtP.firms);
+      };
+
+      const totalPnL = trades.reduce((acc, t) => acc + (Number(t.pnl) || 0), 0);
+      const totalOps = trades.length;
+      const winningTrades = trades.filter(t => t.pnl > 0).length;
+      const winRate = totalOps > 0 ? ((winningTrades / totalOps) * 100).toFixed(1) : '0.0';
+      const totalR = trades.reduce((acc, t) => acc + (Number(t.rMultiple) || 0), 0).toFixed(2);
+      const profitFactor = '0.00';
+      const ratioRP = '0.00';
+
+      const baseBalance = masterAccount ? masterAccount.balance : 23312.48;
+      const equityData = trades.length > 0 ? trades.reduce((acc, t, i) => {
+        const last = acc[acc.length - 1].balance;
+        acc.push({ index: i + 2, balance: last + t.pnl });
+        return acc;
+      }, [{ index: 1, balance: baseBalance }]) : [{ index: 1, balance: baseBalance }, { index: 2, balance: baseBalance }];
+
+      const novemberWeeks = [
+        [null, null, null, null, null, null, 1],
+        [2, 3, 4, 5, 6, 7, 8],
+        [9, 10, 11, 12, 13, 14, 15],
+        [16, 17, 18, 19, 20, 21, 22],
+        [23, 24, 25, 26, 27, 28, 29],
+        [30, null, null, null, null, null, null]
+      ];
+
+      const todayDayOfWeek = new Date().getDay();
+      const isWeekend = todayDayOfWeek === 0 || todayDayOfWeek === 6;
+
+      if (!user) {
+        return (
+          <div id="login-overlay">
+            <div className="login-card">
+              <div className="login-title">¡Bienvenido a Trading Journal!</div>
+              <div className="login-sub">Tu ventaja estadística y disciplina comienzan aquí.</div>
+              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div className="form-group"><label>Usuario</label><input type="text" name="username" defaultValue="Karen" required /></div>
+                <div className="form-group"><label>Contraseña</label><input type="password" name="password" defaultValue="1234" required /></div>
+                <button type="submit" className="btn-action" style={{ width: '100%', padding: '12px' }}>Ingresar al Sistema</button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="app-layout" style={{ width: '100%' }}>
+          <aside className="sidebar">
+            <div>
+              <div style={{ fontSize: '10px', color: '#a855f7', fontWeight: '800' }}>PRO TRADING SUITE</div>
+              <div className="brand-title">JOURNAL DE TRADING</div>
+            </div>
+            <nav className="sidebar-menu">
+              <button className={`tab-btn ${activeTab === 'journal' ? 'active' : ''}`} onClick={() => setActiveTab('journal')}>Journal</button>
+              <button className={`tab-btn ${activeTab === 'accounts' ? 'active' : ''}`} onClick={() => setActiveTab('accounts')}>Cuentas / Replicador</button>
+              <button className={`tab-btn ${activeTab === 'prop' ? 'active' : ''}`} onClick={() => setActiveTab('prop')}>Prop Firm Tracker</button>
+            </nav>
+            <div className="sidebar-footer">
+              <div style={{ color: '#22d3ee', fontWeight: 'bold' }}>¡Hola, {user.name}!</div>
+              <button className="btn-logout" onClick={() => setUser(null)}>Cerrar Sesión</button>
+              <div>GEA</div>
+            </div>
+          </aside>
+
+          <main className="main-content">
+            <header className="panel content-header">
+              <div>
+                <div style={{ fontSize: '10px', color: '#a855f7', fontWeight: '800' }}>TERMINAL CENTRAL</div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#fff', textTransform: 'uppercase' }}>Journal de Trading</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ fontSize: '10px', fontFamily: 'monospace', background: '#040812', padding: '6px 10px', borderRadius: '8px', border: '1px solid #1a2744' }}>
+                  <span>Col: <strong style={{ color: '#22d3ee' }}>{clocks.colombia}</strong></span> • 
+                  <span> NY: <strong style={{ color: '#c084fc' }}>{clocks.ny}</strong></span> • 
+                  <span> Asia: <strong style={{ color: '#34d399' }}>{clocks.asia}</strong></span> • 
+                  <span> Lon: <strong style={{ color: '#fb7185' }}>{clocks.london}</strong></span>
+                </div>
+                <button onClick={() => setShowNewsModal(true)} style={{ background: 'rgba(34,211,238,0.15)', border: '1px solid #22d3ee', color: '#22d3ee', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  🔔 Noticias USD
+                </button>
+              </div>
+            </header>
+
+            {activeTab === 'journal' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="metrics-grid">
+                  <div className="metric-card"><div className="metric-title">Balance Actual (Master)</div><div className="metric-value" style={{ color: '#22d3ee' }}>${masterAccount ? masterAccount.balance.toLocaleString('en-US', {minimumFractionDigits: 2}) : '23,312.48'}</div></div>
+                  <div className="metric-card"><div className="metric-title">P&L Total</div><div className="metric-value" style={{ color: totalPnL >= 0 ? '#34d399' : '#f87171' }}>${totalPnL.toFixed(2)}</div></div>
+                  <div className="metric-card"><div className="metric-title">Resultado en R</div><div className="metric-value" style={{ color: '#c084fc' }}>{totalR}R</div></div>
+                  <div className="metric-card"><div className="metric-title">Win Rate</div><div className="metric-value">{winRate}%</div></div>
+                  <div className="metric-card"><div className="metric-title">Profit Factor</div><div className="metric-value">{profitFactor}</div></div>
+                </div>
+
+                <div className="panel">
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', color: '#22d3ee' }}>CURVA DE BALANCE & EQUITY (CUENTA MAESTRA)</div>
+                  <EquityChart data={equityData} />
+                </div>
+
+                <div className="panel">
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '12px', color: '#c084fc' }}>CALENDARIO MENSUAL (LUNES A DOMINGO) - NOVIEMBRE 2026</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr) 120px', gap: '6px', fontSize: '11px', textAlign: 'center' }}>
+                    {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM', 'SEMANA'].map(d => <div key={d} style={{ background: '#040812', padding: '6px', fontWeight: 'bold', color: '#38bdf8' }}>{d}</div>)}
+                    
+                    {novemberWeeks.map((week, wIndex) => (
+                      <React.Fragment key={`week-${wIndex}`}>
+                        {week.map((dayNum, dIndex) => (
+                          <div key={`w${wIndex}-d${dIndex}`} style={{ background: dayNum ? '#040812' : 'transparent', padding: '10px', borderRadius: '6px', border: dayNum ? '1px solid #1a2744' : 'none', minHeight: '55px' }}>
+                            {dayNum && (
+                              <>
+                                <div style={{ color: '#64748b', fontSize: '10px' }}>{dayNum}</div>
+                                <div style={{ color: '#fff', fontWeight: 'bold', marginTop: '4px' }}>$0.00</div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        <div style={{ background: '#0b1325', padding: '10px', borderRadius: '6px', border: '1px solid #1a2744', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <div style={{ color: '#64748b', fontSize: '9px' }}>SEM {wIndex + 1}</div>
+                          <div style={{ color: '#34d399', fontWeight: 'bold', fontSize: '11px' }}>$0.00</div>
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="panel">
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', color: '#22d3ee' }}>OPERACIONES - PLAN FRENTE A REALIDAD</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Sincronización activa con cuenta maestra Tradovate / FTMO Demo.</div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'accounts' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="panel">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <h3 style={{ fontSize: '14px', color: '#22d3ee' }}>Cuenta Principal / Maestra (Fuente de Señales)</h3>
+                    <button className="btn-action" onClick={() => setShowMasterModal(true)}>⚙ Configurar Cuenta Maestra</button>
+                  </div>
+                  <div style={{ background: '#040812', padding: '16px', borderRadius: '8px', border: '1px solid #1a2744', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>NOMBRE / BROKER</div>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{masterAccount ? masterAccount.name : 'FTMO Demo'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>LOGIN / CUENTA</div>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#38bdf8' }}>{masterAccount ? masterAccount.login : '1515227124'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>SERVIDOR</div>
+                      <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#c084fc' }}>{masterAccount ? masterAccount.server : 'FTMO-Demo'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>BALANCE REAL</div>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#34d399' }}>${masterAccount ? masterAccount.balance.toLocaleString('en-US', {minimumFractionDigits: 2}) : '23,312.48'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '14px', color: '#22d3ee' }}>Cuentas Esclavas (Replicador)</h3>
+                    <button className="btn-action" onClick={() => setShowAccountModal(true)}>+ Vincular Cuenta Esclava</button>
+                  </div>
+                  <div className="table-wrapper">
+                    <table>
+                      <thead><tr><th>Nombre</th><th>Login</th><th>Servidor</th><th>Sufijo</th><th>Multiplicador</th><th>Estado</th><th style={{ textAlign: 'right' }}>Acción</th></tr></thead>
+                      <tbody>
+                        {accounts.length === 0 ? (
+                          <tr><td colSpan="7" style={{ textAlign: 'center', color: '#64748b' }}>Sin cuentas esclavas vinculadas.</td></tr>
+                        ) : (
+                          accounts.map(acc => (
+                            <tr key={acc._id}>
+                              <td>{acc.name}</td>
+                              <td>{acc.login}</td>
+                              <td style={{ color: '#c084fc' }}>{acc.server}</td>
+                              <td>{acc.suffix}</td>
+                              <td>{acc.multiplier}x</td>
+                              <td>{acc.active ? 'Activa' : 'Pausada'}</td>
+                              <td style={{ textAlign: 'right' }}>{acc.active ? 'Conectada' : 'Desconectada'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'prop' && (
+              <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '14px', color: '#22d3ee' }}>Prop Firm Tracker Financiero</h3>
+                  <button className="btn-action" onClick={() => setShowPropModal(true)}>+ Nueva Cuenta Prop Firm</button>
+                </div>
+
+                <div className="metrics-grid">
+                  <div className="metric-card"><div className="metric-title">Inversión Total</div><div className="metric-value" style={{ color: '#f87171' }}>$0.00</div></div>
+                  <div className="metric-card"><div className="metric-title">Payouts Recibidos</div><div className="metric-value" style={{ color: '#34d399' }}>$0.00</div></div>
+                  <div className="metric-card"><div className="metric-title">Beneficio Neto</div><div className="metric-value">$0.00</div></div>
+                  <div className="metric-card"><div className="metric-title">ROI Total</div><div className="metric-value" style={{ color: '#c084fc' }}>0.0%</div></div>
+                </div>
+
+                <div className="table-wrapper">
+                  <table>
+                    <thead><tr><th>Empresa</th><th>Tamaño</th><th>Costo</th><th>Fase</th><th>Payouts</th><th style={{ textAlign: 'right' }}>Estado</th></tr></thead>
+                    <tbody>
+                      {propFirms.length === 0 ? (
+                        <tr><td colSpan="6" style={{ textAlign: 'center', color: '#64748b' }}>Sin cuentas registradas.</td></tr>
+                      ) : (
+                        propFirms.map(pf => (
+                          <tr key={pf._id}>
+                            <td>{pf.firmName}</td>
+                            <td>${pf.accountSize}</td>
+                            <td>${pf.cost}</td>
+                            <td>{pf.phase}</td>
+                            <td>${pf.payoutsReceived}</td>
+                            <td style={{ textAlign: 'right' }}>{pf.status}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {showNewsModal && (
+            <div className="modal">
+              <div className="modal-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#22d3ee' }}>🔔 Notificaciones de Noticias USD</h3>
+                  <button onClick={() => setShowNewsModal(false)} style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '16px', cursor: 'pointer' }}>✕</button>
+                </div>
+                <div style={{ fontSize: '12px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                  {isWeekend ? (
+                    <div style={{ background: '#040812', padding: '16px', borderRadius: '8px', border: '1px solid #1a2744', textAlign: 'center' }}>
+                      <div style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '14px', marginBottom: '6px' }}>📅 Fin de Semana — Mercados Cerrados</div>
+                      <div style={{ color: '#64748b' }}>Hoy es fin de semana. No hay publicaciones macroeconómicas USD de alto impacto programadas. Los mercados globales reabrirán en la sesión de Asia.</div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#040812', padding: '10px', borderRadius: '8px', border: '1px solid #1a2744' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#38bdf8', marginBottom: '4px' }}>
+                        <span>🔴 Alta Volatilidad (USD)</span>
+                        <span style={{ color: '#f87171' }}>8:30 AM EST</span>
+                      </div>
+                      <div>Nóminas No Agrícolas (NFP) & Tasa de Desempleo</div>
+                    </div>
+                  )}
+                </div>
+                <button className="btn-action" style={{ width: '100%', padding: '10px' }} onClick={() => setShowNewsModal(false)}>Entendido</button>
+              </div>
+            </div>
+          )}
+
+          {showMasterModal && (
+            <div className="modal">
+              <div className="modal-card">
+                <h3 style={{ fontSize: '14px', color: '#22d3ee', marginBottom: '14px' }}>Configurar Cuenta Maestra (Principal)</h3>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const mData = {
+                    username: user.username,
+                    name: e.target.name.value,
+                    login: e.target.login.value,
+                    server: e.target.server.value,
+                    password: e.target.password.value,
+                    brokerType: e.target.brokerType.value,
+                    balance: Number(e.target.balance.value)
+                  };
+                  try {
+                    const res = await fetch('/api/master-account', { 
+                      method: 'POST', 
+                      headers: { 'Content-Type': 'application/json' }, 
+                      body: JSON.stringify(mData) 
+                    });
+                    const dt = await res.json();
+                    if (dt.success) { 
+                      setMasterAccount(dt.master); 
+                      setShowMasterModal(false); 
+                    } else {
+                      alert('No se pudo guardar: ' + dt.message);
+                    }
+                  } catch (err) {
+                    alert('Error de red al intentar guardar.');
+                  }
+                }}>
+                  <div className="form-group"><label>Nombre / Broker</label><input type="text" name="name" defaultValue={masterAccount?.name || 'FTMO Demo'} required /></div>
+                  <div className="form-group"><label>Login / Cuenta</label><input type="text" name="login" defaultValue={masterAccount?.login || '1515227124'} required /></div>
+                  <div className="form-group"><label>Servidor</label><input type="text" name="server" defaultValue={masterAccount?.server || 'FTMO-Demo'} required /></div>
+                  <div className="form-group"><label>Contraseña</label><input type="password" name="password" defaultValue={masterAccount?.password || ''} placeholder="••••••••" required /></div>
+                  <div className="form-group"><label>Plataforma</label>
+                    <select name="brokerType" defaultValue={masterAccount?.brokerType || 'FTMO'}>
+                      <option value="FTMO">FTMO (MetaTrader)</option>
+                      <option value="Tradovate">Tradovate / Lucid</option>
+                    </select>
+                  </div>
+                  <div className="form-group"><label>Balance Real ($)</label><input type="number" step="0.01" name="balance" defaultValue={masterAccount?.balance || 23312.48} required /></div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                    <button type="submit" className="btn-action" style={{ flex: 1 }}>Guardar Maestra</button>
+                    <button type="button" onClick={() => setShowMasterModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {showAccountModal && (
+            <div className="modal">
+              <div className="modal-card">
+                <h3 style={{ fontSize: '14px', color: '#22d3ee', marginBottom: '14px' }}>Vincular Cuenta Esclava</h3>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const aData = {
+                    username: user.username,
+                    name: e.target.name.value,
+                    login: e.target.login.value,
+                    server: e.target.server.value,
+                    password: e.target.password.value,
+                    suffix: e.target.suffix.value,
+                    multiplier: Number(e.target.multiplier.value)
+                  };
+                  const res = await fetch('/api/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(aData) });
+                  const dt = await res.json();
+                  if (dt.success) { setAccounts(dt.accounts); setShowAccountModal(false); }
+                }}>
+                  <div className="form-group"><label>Nombre Identificador</label><input type="text" name="name" placeholder="IC Markets ECN" required /></div>
+                  <div className="form-group"><label>Login / ID</label><input type="text" name="login" placeholder="8829104" required /></div>
+                  <div className="form-group"><label>Servidor</label><input type="text" name="server" placeholder="ICMarkets-Demo" required /></div>
+                  <div className="form-group"><label>Contraseña</label><input type="password" name="password" placeholder="••••••••" required /></div>
+                  <div className="form-group"><label>Sufijo</label><input type="text" name="suffix" defaultValue=".raw" /></div>
+                  <div className="form-group"><label>Multiplicador</label><input type="number" step="0.1" name="multiplier" defaultValue="0.5" /></div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                    <button type="submit" className="btn-action" style={{ flex: 1 }}>Guardar</button>
+                    <button type="button" onClick={() => setShowAccountModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {showPropModal && (
+            <div className="modal">
+              <div className="modal-card">
+                <h3 style={{ fontSize: '14px', color: '#22d3ee', marginBottom: '14px' }}>Nueva Cuenta Prop Firm</h3>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const pData = {
+                    username: user.username,
+                    firmName: e.target.firmName.value,
+                    accountSize: Number(e.target.accountSize.value),
+                    cost: Number(e.target.cost.value),
+                    phase: e.target.phase.value
+                  };
+                  const res = await fetch('/api/prop-firms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pData) });
+                  const dt = await res.json();
+                  if (dt.success) { setPropFirms(dt.firms); setShowPropModal(false); }
+                }}>
+                  <div className="form-group"><label>Empresa</label><input type="text" name="firmName" placeholder="FTMO" required /></div>
+                  <div className="form-group"><label>Tamaño ($)</label><input type="number" name="accountSize" placeholder="50000" required /></div>
+                  <div className="form-group"><label>Costo ($)</label><input type="number" name="cost" placeholder="250" required /></div>
+                  <div className="form-group"><label>Fase</label><input type="text" name="phase" defaultValue="Fase 1" /></div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                    <button type="submit" className="btn-action" style={{ flex: 1 }}>Guardar</button>
+                    <button type="button" onClick={() => setShowPropModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>
