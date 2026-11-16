@@ -193,6 +193,7 @@
         return acc;
       }, [{ index: 1, balance: baseBalance }]) : [{ index: 1, balance: baseBalance }, { index: 2, balance: baseBalance }];
 
+      // Estructura de semanas para Noviembre 2026
       const novemberWeeks = [
         [null, null, null, null, null, null, 1],
         [2, 3, 4, 5, 6, 7, 8],
@@ -201,6 +202,21 @@
         [23, 24, 25, 26, 27, 28, 29],
         [30, null, null, null, null, null, null]
       ];
+
+      // Función para calcular PnL de un día específico (YYYY-MM-DD)
+      const getDayPnL = (dayNum) => {
+        if (!dayNum) return 0;
+        const formattedDay = dayNum < 10 ? `0${dayNum}` : `${dayNum}`;
+        const targetDate = `2026-11-${formattedDay}`;
+        return trades
+          .filter(t => t.date === targetDate)
+          .reduce((sum, t) => sum + (Number(t.pnl) || 0), 0);
+      };
+
+      // Función para calcular PnL de una semana entera
+      const getWeekPnL = (week) => {
+        return week.reduce((sum, dayNum) => sum + getDayPnL(dayNum), 0);
+      };
 
       const todayDayOfWeek = new Date().getDay();
       const isWeekend = todayDayOfWeek === 0 || todayDayOfWeek === 6;
@@ -262,11 +278,11 @@
             {activeTab === 'journal' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div className="metrics-grid">
-                  <div className="metric-card"><div className="metric-title">Balance Actual (Master)</div><div className="metric-value" style={{ color: '#22d3ee' }}>${masterAccount ? masterAccount.balance.toLocaleString('en-US', {minimumFractionDigits: 2}) : '23,312.48'}</div></div>
+                  <div className="metric-card"><div className="metric-title">Balance Actual (Master)</div><div className="metric-value" style={{ color: '#22d3ee' }}>${baseBalance.toLocaleString('en-US', {minimumFractionDigits: 2})}</div></div>
                   <div className="metric-card"><div className="metric-title">P&L Total</div><div className="metric-value" style={{ color: totalPnL >= 0 ? '#34d399' : '#f87171' }}>${totalPnL.toFixed(2)}</div></div>
                   <div className="metric-card"><div className="metric-title">Resultado en R</div><div className="metric-value" style={{ color: '#c084fc' }}>{totalR}R</div></div>
                   <div className="metric-card"><div className="metric-title">Win Rate</div><div className="metric-value">{winRate}%</div></div>
-                  <div className="metric-card"><div className="metric-title">Profit Factor</div><div className="metric-value">{profitFactor}</div></div>
+                  <div className="metric-card"><div className="metric-title">Operaciones</div><div className="metric-value">{totalOps}</div></div>
                 </div>
 
                 <div className="panel">
@@ -274,35 +290,81 @@
                   <EquityChart data={equityData} />
                 </div>
 
+                {/* CALENDARIO DINÁMICO */}
                 <div className="panel">
                   <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '12px', color: '#c084fc' }}>CALENDARIO MENSUAL (LUNES A DOMINGO) - NOVIEMBRE 2026</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr) 120px', gap: '6px', fontSize: '11px', textAlign: 'center' }}>
                     {['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM', 'SEMANA'].map(d => <div key={d} style={{ background: '#040812', padding: '6px', fontWeight: 'bold', color: '#38bdf8' }}>{d}</div>)}
                     
-                    {novemberWeeks.map((week, wIndex) => (
-                      <React.Fragment key={`week-${wIndex}`}>
-                        {week.map((dayNum, dIndex) => (
-                          <div key={`w${wIndex}-d${dIndex}`} style={{ background: dayNum ? '#040812' : 'transparent', padding: '10px', borderRadius: '6px', border: dayNum ? '1px solid #1a2744' : 'none', minHeight: '55px' }}>
-                            {dayNum && (
-                              <>
-                                <div style={{ color: '#64748b', fontSize: '10px' }}>{dayNum}</div>
-                                <div style={{ color: '#fff', fontWeight: 'bold', marginTop: '4px' }}>$0.00</div>
-                              </>
-                            )}
+                    {novemberWeeks.map((week, wIndex) => {
+                      const weekTotal = getWeekPnL(week);
+                      return (
+                        <React.Fragment key={`week-${wIndex}`}>
+                          {week.map((dayNum, dIndex) => {
+                            const pnl = getDayPnL(dayNum);
+                            return (
+                              <div key={`w${wIndex}-d${dIndex}`} style={{ background: dayNum ? '#040812' : 'transparent', padding: '10px', borderRadius: '6px', border: dayNum ? '1px solid #1a2744' : 'none', minHeight: '55px' }}>
+                                {dayNum && (
+                                  <>
+                                    <div style={{ color: '#64748b', fontSize: '10px' }}>{dayNum}</div>
+                                    <div style={{ color: pnl > 0 ? '#34d399' : pnl < 0 ? '#f87171' : '#fff', fontWeight: 'bold', marginTop: '4px', fontSize: '11px' }}>
+                                      ${pnl.toFixed(2)}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <div style={{ background: '#0b1325', padding: '10px', borderRadius: '6px', border: '1px solid #1a2744', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <div style={{ color: '#64748b', fontSize: '9px' }}>SEM {wIndex + 1}</div>
+                            <div style={{ color: weekTotal >= 0 ? '#34d399' : '#f87171', fontWeight: 'bold', fontSize: '11px' }}>${weekTotal.toFixed(2)}</div>
                           </div>
-                        ))}
-                        <div style={{ background: '#0b1325', padding: '10px', borderRadius: '6px', border: '1px solid #1a2744', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                          <div style={{ color: '#64748b', fontSize: '9px' }}>SEM {wIndex + 1}</div>
-                          <div style={{ color: '#34d399', fontWeight: 'bold', fontSize: '11px' }}>$0.00</div>
-                        </div>
-                      </React.Fragment>
-                    ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* TABLA DE HISTORIAL DE TRADES AUTOMÁTICOS */}
+                <div className="panel" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#22d3ee' }}>HISTORIAL DE OPERACIONES AUTOMÁTICAS (FTMO)</div>
+                  <div className="table-wrapper">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Cuenta</th>
+                          <th>Símbolo</th>
+                          <th>Tipo</th>
+                          <th>Lotes</th>
+                          <th>P&L ($)</th>
+                          <th style={{ textAlign: 'right' }}>R-Multiple</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trades.length === 0 ? (
+                          <tr><td colSpan="7" style={{ textAlign: 'center', color: '#64748b' }}>Aún no hay operaciones registradas.</td></tr>
+                        ) : (
+                          trades.map((t, idx) => (
+                            <tr key={idx}>
+                              <td>{t.date}</td>
+                              <td>{t.account}</td>
+                              <td style={{ color: '#38bdf8', fontWeight: 'bold' }}>{t.symbol}</td>
+                              <td style={{ color: t.type === 'BUY' ? '#34d399' : '#f87171', fontWeight: 'bold' }}>{t.type}</td>
+                              <td>{t.lot}</td>
+                              <td style={{ color: t.pnl >= 0 ? '#34d399' : '#f87171', fontWeight: 'bold' }}>${Number(t.pnl).toFixed(2)}</td>
+                              <td style={{ textAlign: 'right', color: '#c084fc' }}>{t.rMultiple}R</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
                 <div className="panel">
                   <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', color: '#22d3ee' }}>OPERACIONES - PLAN FRENTE A REALIDAD</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Sincronización activa con cuenta maestra Tradovate / FTMO Demo.</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>Sincronización activa con puente MT5 (FTMO Demo).</div>
                 </div>
               </div>
             )}
@@ -477,75 +539,15 @@
                   <div className="form-group"><label>Balance Real ($)</label><input type="number" step="0.01" name="balance" defaultValue={masterAccount?.balance || 23312.48} required /></div>
                   <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                     <button type="submit" className="btn-action" style={{ flex: 1 }}>Guardar Maestra</button>
-                    <button type="button" onClick={() => setShowMasterModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
+                    <button type="button" onClick={() => setShowMasterModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</h3></button>
                   </div>
                 </form>
               </div>
             </div>
           )}
 
-          {showAccountModal && (
-            <div className="modal">
-              <div className="modal-card">
-                <h3 style={{ fontSize: '14px', color: '#22d3ee', marginBottom: '14px' }}>Vincular Cuenta Esclava</h3>
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  const aData = {
-                    username: user.username,
-                    name: e.target.name.value,
-                    login: e.target.login.value,
-                    server: e.target.server.value,
-                    password: e.target.password.value,
-                    suffix: e.target.suffix.value,
-                    multiplier: Number(e.target.multiplier.value)
-                  };
-                  const res = await fetch('/api/accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(aData) });
-                  const dt = await res.json();
-                  if (dt.success) { setAccounts(dt.accounts); setShowAccountModal(false); }
-                }}>
-                  <div className="form-group"><label>Nombre Identificador</label><input type="text" name="name" placeholder="IC Markets ECN" required /></div>
-                  <div className="form-group"><label>Login / ID</label><input type="text" name="login" placeholder="8829104" required /></div>
-                  <div className="form-group"><label>Servidor</label><input type="text" name="server" placeholder="ICMarkets-Demo" required /></div>
-                  <div className="form-group"><label>Contraseña</label><input type="password" name="password" placeholder="••••••••" required /></div>
-                  <div className="form-group"><label>Sufijo</label><input type="text" name="suffix" defaultValue=".raw" /></div>
-                  <div className="form-group"><label>Multiplicador</label><input type="number" step="0.1" name="multiplier" defaultValue="0.5" /></div>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                    <button type="submit" className="btn-action" style={{ flex: 1 }}>Guardar</button>
-                    <button type="button" onClick={() => setShowAccountModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {showPropModal && (
-            <div className="modal">
-              <div className="modal-card">
-                <h3 style={{ fontSize: '14px', color: '#22d3ee', marginBottom: '14px' }}>Nueva Cuenta Prop Firm</h3>
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  const pData = {
-                    username: user.username,
-                    firmName: e.target.firmName.value,
-                    accountSize: Number(e.target.accountSize.value),
-                    cost: Number(e.target.cost.value),
-                    phase: e.target.phase.value
-                  };
-                  const res = await fetch('/api/prop-firms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pData) });
-                  const dt = await res.json();
-                  if (dt.success) { setPropFirms(dt.firms); setShowPropModal(false); }
-                }}>
-                  <div className="form-group"><label>Empresa</label><input type="text" name="firmName" placeholder="FTMO" required /></div>
-                  <div className="form-group"><label>Tamaño ($)</label><input type="number" name="accountSize" placeholder="50000" required /></div>
-                  <div className="form-group"><label>Costo ($)</label><input type="number" name="cost" placeholder="250" required /></div>
-                  <div className="form-group"><label>Fase</label><input type="text" name="phase" defaultValue="Fase 1" /></div>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                    <button type="submit" className="btn-action" style={{ flex: 1 }}>Guardar</button>
-                    <button type="button" onClick={() => setShowPropModal(false)} style={{ background: '#1a2744', color: '#fff', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer', flex: 1 }}>Cancelar</button>
-                  </div>
-                </form>
-              </div>
-            </div>
+          {showMasterModal && (
+            ...
           )}
         </div>
       );
