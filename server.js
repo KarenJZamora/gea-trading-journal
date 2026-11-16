@@ -95,17 +95,24 @@ function broadcast(type, data) {
   });
 }
 
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
+app.post('/api/webhook/signal', async (req, res) => {
+  const { username, account, symbol, type, lot, pnl, rMultiple, date } = req.body;
   try {
-    const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') }, password });
-    if (user) {
-      res.json({ success: true, message: `¡Hola, ${user.fullName}!`, user: { username: user.username, name: user.fullName } });
-    } else {
-      res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
-    }
+    await Trade.create({
+      username: username || 'Karen',
+      account: account || 'Principal',
+      symbol,
+      type,
+      lot,
+      pnl: pnl || 0,
+      rMultiple: rMultiple || 0,
+      date: date || new Date().toISOString().split('T')[0]
+    });
+    const trades = await Trade.find({ username: username || 'Karen' });
+    broadcast('NEW_TRADE', { trades });
+    res.json({ success: true, trades });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Error interno en el servidor.' });
+    res.status(500).json({ success: false, message: 'Error procesando webhook.' });
   }
 });
 
